@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramNetworkError
+from aiohttp import web
 
 from app.config import settings
 from app.database import init_db
@@ -38,6 +40,10 @@ async def delete_webhook_with_retry(bot: Bot, attempts: int = 5) -> None:
             await asyncio.sleep(delay)
 
 
+async def health_check(_: web.Request) -> web.Response:
+    return web.json_response({"status": "ok"})
+
+
 async def main() -> None:
     if not settings.bot_token:
         raise RuntimeError("BOT_TOKEN must be configured in the .env file.")
@@ -46,10 +52,18 @@ async def main() -> None:
     bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
     dp.include_router(router)
+    app = web.Application()
+    app.router.add_get("/health", health_check)
+    runner = web.AppRunner(app)
     try:
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", "10000")))
+        await site.start()
+        logging.info("Health check server listening on port %s", os.getenv("PORT", "10000"))
         await delete_webhook_with_retry(bot)
         await dp.start_polling(bot, close_bot_session=False)
     finally:
+        await runner.cleanup()
         await bot.session.close()
 
 
