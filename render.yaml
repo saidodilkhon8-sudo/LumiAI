@@ -1,0 +1,20 @@
+services:
+  - type: worker
+    name: lumiai-bot
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app
+    disk:
+      name: lumiai-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DEFAULT_MODEL
+        sync: false
+      - key: DB_PATH
+        value: /var/data/lumi_ai.db
